@@ -13,7 +13,15 @@ from fastapi import FastAPI, Query, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
 from fastapi.responses import HTMLResponse
-from scraper import get_rt_scores, ScraperException, init_shared_browser, close_shared_browser
+from scraper import (
+    get_rt_scores, 
+    ScraperException, 
+    init_shared_browser, 
+    close_shared_browser,
+    init_shared_http_client,
+    close_shared_http_client,
+    prewarm_cache
+)
 
 # Configure logging (Set to WARNING in production to optimize console I/O speed)
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,13 +29,16 @@ logger = logging.getLogger("rt_api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize the warm browser process once on startup (Async)
-    logger.info("Initializing shared browser for FastAPI API server...")
+    # Initialize the warm browser process and shared HTTPX pool on startup (Async)
+    logger.warning("Starting API server, warming browser and connection pools...")
     await init_shared_browser(headless=True)
+    await init_shared_http_client()
+    asyncio.create_task(prewarm_cache())
     yield
-    # Clean up and close the browser process on shutdown (Async)
-    logger.info("Closing shared browser on FastAPI API server shutdown...")
+    # Clean up and close browser and client on shutdown (Async)
+    logger.warning("Shutting down API server, releasing pools...")
     await close_shared_browser()
+    await close_shared_http_client()
 
 app = FastAPI(
     title="Rotten Tomatoes Ratings API",
@@ -95,38 +106,53 @@ def read_root():
 @app.get("/api/scores")
 async def get_scores(movie: str = Query(..., description="The name, slug, or full URL of the movie on Rotten Tomatoes")):
     """
-    Retrieve Tomatometer and Audience Score for a movie.
+    Retrieve Tomatometer, Popcornmeter, and their counts for a movie.
     """
-    if not movie.strip():
+    movie_clean = movie.strip()
+    if not movie_clean:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The 'movie' query parameter cannot be empty."
+            detail="Validation Error: The 'movie' query parameter cannot be empty."
+        )
+        
+    # Validation: Check if it's a URL and if it belongs to Rotten Tomatoes
+    is_url = movie_clean.startswith("http://") or movie_clean.startswith("https://") or \
+             movie_clean.startswith("www.rottentomatoes.com/") or movie_clean.startswith("rottentomatoes.com/")
+    if is_url and "rottentomatoes.com" not in movie_clean:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Validation Error: Invalid URL structure. Only Rotten Tomatoes URLs are supported (e.g. https://www.rottentomatoes.com/m/matrix)."
         )
         
     try:
-        logger.info(f"API request received for movie: '{movie}'")
-        data = await get_rt_scores(movie)
+        data = await get_rt_scores(movie_clean)
         return data
     except ScraperException as se:
-        logger.error(f"Scraping error for '{movie}': {se}")
-        # Look at error type to raise appropriate status code
-        if "404" in str(se) or "not be found" in str(se):
+        err_msg = str(se)
+        # Detailed conditional validation reporting
+        if "HTTP 404" in err_msg or "not found" in err_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie '{movie}' was not found on Rotten Tomatoes. Verify the name or slug."
+                detail=f"Movie Not Found: '{movie_clean}' was not found on Rotten Tomatoes. Verify the name, slug, or URL."
             )
+        elif "Invalid URL" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Validation Error: {err_msg}"
+            )
+        # RT Server connection or response issues
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve ratings: {str(se).splitlines()[0]}"
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Rotten Tomatoes Gateway Error: {err_msg.splitlines()[0]}"
         )
     except Exception as e:
-        logger.error(f"Unexpected API error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected error: {str(e)}"
+            detail=f"Internal Server Error: {str(e)}"
         )
 
 if __name__ == "__main__":
+    # pyrefly: ignore [missing-import]
     import uvicorn
     # Run the server locally on port 8000 (reload disabled to prevent event loop policy overrides on Windows)
     uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)

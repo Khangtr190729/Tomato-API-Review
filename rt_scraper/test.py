@@ -1,12 +1,13 @@
 import os
 import logging
 import asyncio
-from scraper import get_rt_scores, ScraperException
+from scraper import get_rt_scores, ScraperException, init_shared_http_client, close_shared_http_client
 
 # Configure logging for test output
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 async def test_scraper_async():
+    await init_shared_http_client()
     test_urls = [
         "https://www.rottentomatoes.com/m/the_matrix",
         "soul_2020",
@@ -93,6 +94,7 @@ async def test_scraper_async():
     print("\n=========================================================")
     print("ALL TESTS COMPLETED SUCCESSFULLY!")
     print("=========================================================")
+    await close_shared_http_client()
 
 if __name__ == "__main__":
     asyncio.run(test_scraper_async())
