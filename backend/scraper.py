@@ -4,9 +4,12 @@ import os
 import re
 import asyncio
 import urllib.parse
+# pyrefly: ignore [missing-import]
 import httpx
 from typing import Dict, Any, Optional
+# pyrefly: ignore [missing-import]
 from bs4 import BeautifulSoup
+# pyrefly: ignore [missing-import]
 from playwright.async_api import async_playwright, Error as PlaywrightError
 
 # Configure logging
@@ -139,6 +142,8 @@ def _parse_count(count_val: Any) -> Optional[int]:
 def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
     """Extract movie title, scores, and review/rating counts from JSON structures or DOM fallback."""
     title = None
+    image = None
+    description = None
     tomatometer = None
     tomatometer_review_count = None
     audience = None
@@ -206,6 +211,10 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
             if isinstance(data, dict) and data.get("@type") == "Movie":
                 if not title:
                     title = data.get("name")
+                if not image:
+                    image = data.get("image")
+                if not description:
+                    description = data.get("description")
                 aggregate_rating = data.get("aggregateRating", {})
                 if aggregate_rating and aggregate_rating.get("name") == "Tomatometer":
                     if tomatometer is None:
@@ -214,6 +223,16 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
                         tomatometer_review_count = _parse_count(aggregate_rating.get("ratingCount") or aggregate_rating.get("reviewCount"))
         except Exception as e:
             logger.debug(f"Failed parsing ld+json tag: {e}")
+
+    # 3.5 Fallback to meta tags for image and description
+    if not image:
+        meta_img = soup.find("meta", property="og:image")
+        if meta_img:
+            image = meta_img.get("content")
+    if not description:
+        meta_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+        if meta_desc:
+            description = meta_desc.get("content")
 
     # 4. Fallback to DOM parsing for title, reviews/ratings count if still missing
     if not title:
@@ -283,6 +302,8 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
     if title:
         return {
             "title": title,
+            "image": image,
+            "description": description,
             "tomatometer": tomatometer,
             "tomatometer_review_count": tomatometer_review_count,
             "audience_score": audience,

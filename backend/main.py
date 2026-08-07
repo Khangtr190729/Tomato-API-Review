@@ -91,6 +91,8 @@ def read_root():
                 <p><strong>Example Response:</strong></p>
                 <pre>{
     "title": "The Matrix",
+    "image": "https://resizing.flixster.com/.../The_Matrix_Poster.jpg",
+    "description": "Neo (Keanu Reeves) believes that Morpheus...",
     "tomatometer": 83,
     "tomatometer_review_count": 209,
     "audience_score": 85,
@@ -112,7 +114,7 @@ async def get_scores(movie: str = Query(..., description="The name, slug, or ful
     if not movie_clean:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Validation Error: The 'movie' query parameter cannot be empty."
+            detail="Tên phim hoặc URL không được để trống."
         )
         
     # Validation: Check if it's a URL and if it belongs to Rotten Tomatoes
@@ -121,7 +123,7 @@ async def get_scores(movie: str = Query(..., description="The name, slug, or ful
     if is_url and "rottentomatoes.com" not in movie_clean:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Validation Error: Invalid URL structure. Only Rotten Tomatoes URLs are supported (e.g. https://www.rottentomatoes.com/m/matrix)."
+            detail="Định dạng URL không hợp lệ. Chỉ hỗ trợ URL của Rotten Tomatoes (VD: https://www.rottentomatoes.com/m/matrix)."
         )
         
     try:
@@ -133,26 +135,26 @@ async def get_scores(movie: str = Query(..., description="The name, slug, or ful
         if "HTTP 404" in err_msg or "not found" in err_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Movie Not Found: '{movie_clean}' was not found on Rotten Tomatoes. Verify the name, slug, or URL."
+                detail=f"Không tìm thấy phim: '{movie_clean}'. Vui lòng kiểm tra lại tên, slug, hoặc URL."
             )
         elif "Invalid URL" in err_msg:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Validation Error: {err_msg}"
+                detail=f"Lỗi Validation: {err_msg}"
             )
         # RT Server connection or response issues
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Rotten Tomatoes Gateway Error: {err_msg.splitlines()[0]}"
+            detail=f"Lỗi kết nối Rotten Tomatoes: {err_msg.splitlines()[0]}"
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal Server Error: {str(e)}"
+            detail=f"Lỗi máy chủ nội bộ: {str(e)}"
         )
 
 if __name__ == "__main__":
     # pyrefly: ignore [missing-import]
     import uvicorn
     # Run the server locally on port 8000 (reload disabled to prevent event loop policy overrides on Windows)
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
