@@ -264,10 +264,6 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
                     if meta_desc:
                         description = meta_desc.get("content")
                         
-    # Translate description to Vietnamese
-    if description:
-        description = await translate_to_vi_async(description)
-
     # 4. Fallback to DOM parsing for title, reviews/ratings count if still missing
     if not title:
         h1_tag = soup.find("h1")
@@ -401,7 +397,10 @@ async def _fetch_movie_via_httpx_async(url: str) -> Optional[Dict[str, Any]]:
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, "html.parser")
-        return _extract_scores(soup)
+        result = _extract_scores(soup)
+        if result and result.get("description"):
+            result["description"] = await translate_to_vi_async(result["description"])
+        return result
     except ScraperException:
         raise
     except httpx.HTTPStatusError as hse:
@@ -601,6 +600,8 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
             # Parse Playwright-fetched HTML and extract data
             soup = BeautifulSoup(html_content, "html.parser")
             result = _extract_scores(soup)
+            if result and result.get("description"):
+                result["description"] = await translate_to_vi_async(result["description"])
             if result:
                 return result
                 
