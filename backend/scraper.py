@@ -11,6 +11,19 @@ from typing import Dict, Any, Optional
 from bs4 import BeautifulSoup
 # pyrefly: ignore [missing-import]
 from playwright.async_api import async_playwright, Error as PlaywrightError
+# pyrefly: ignore [missing-import]
+from deep_translator import GoogleTranslator
+
+async def translate_to_vi_async(text: str) -> str:
+    if not text:
+        return text
+    try:
+        def do_translation():
+            return GoogleTranslator(source='auto', target='vi').translate(text)
+        return await asyncio.to_thread(do_translation)
+    except Exception as e:
+        logger.warning(f"Translation failed: {e}")
+        return text
 
 # Configure logging
 logger = logging.getLogger("rt_scraper")
@@ -213,8 +226,7 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
                     title = data.get("name")
                 if not image:
                     image = data.get("image")
-                if not description:
-                    description = data.get("description")
+                # Do NOT use data.get("description") as it is usually generic SEO text
                 aggregate_rating = data.get("aggregateRating", {})
                 if aggregate_rating and aggregate_rating.get("name") == "Tomatometer":
                     if tomatometer is None:
@@ -224,15 +236,37 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
         except Exception as e:
             logger.debug(f"Failed parsing ld+json tag: {e}")
 
-    # 3.5 Fallback to meta tags for image and description
+    # 3.5 Fallback to meta tags for image and DOM for real synopsis
     if not image:
         meta_img = soup.find("meta", property="og:image")
         if meta_img:
             image = meta_img.get("content")
+            
+    # Try finding real synopsis
     if not description:
-        meta_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
-        if meta_desc:
-            description = meta_desc.get("content")
+        # First try <drawer-more> which usually contains the synopsis
+        drawer = soup.find("drawer-more")
+        if drawer and drawer.text.strip():
+            description = drawer.text.strip()
+        else:
+            # Fallback to <rt-text data-qa="movie-info-synopsis">
+            rt_text = soup.find("rt-text", attrs={"data-qa": "movie-info-synopsis"})
+            if rt_text and rt_text.text.strip():
+                description = rt_text.text.strip()
+            else:
+                # Fallback to <p data-qa="movie-info-synopsis">
+                p_tag = soup.find("p", attrs={"data-qa": "movie-info-synopsis"})
+                if p_tag and p_tag.text.strip():
+                    description = p_tag.text.strip()
+                else:
+                    # Generic fallback
+                    meta_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+                    if meta_desc:
+                        description = meta_desc.get("content")
+                        
+    # Translate description to Vietnamese
+    if description:
+        description = await translate_to_vi_async(description)
 
     # 4. Fallback to DOM parsing for title, reviews/ratings count if still missing
     if not title:
