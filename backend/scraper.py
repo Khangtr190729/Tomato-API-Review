@@ -25,6 +25,17 @@ async def translate_to_vi_async(text: str) -> str:
         logger.warning(f"Translation failed: {e}")
         return text
 
+async def translate_to_en_async(text: str) -> str:
+    if not text:
+        return text
+    try:
+        def do_translation():
+            return GoogleTranslator(source='auto', target='en').translate(text)
+        return await asyncio.to_thread(do_translation)
+    except Exception as e:
+        logger.warning(f"Translation failed: {e}")
+        return text
+
 # Configure logging
 logger = logging.getLogger("rt_scraper")
 logger.setLevel(logging.WARNING)  # Default to WARNING to optimize performance
@@ -437,14 +448,6 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
     if not url_or_name:
         raise ScraperException("Input movie URL or name cannot be empty.")
         
-    cache_key = url_or_name.lower()
-    if cache_key in _memory_cache:
-        ts, cached_data, is_exc = _memory_cache[cache_key]
-        if time.time() - ts < 3600:  # 1-hour fast memory cache
-            if is_exc:
-                raise cached_data
-            return cached_data
-            
     # Classify input:
     # 1. Full URL
     is_url = url_or_name.startswith("http://") or url_or_name.startswith("https://") or \
@@ -452,6 +455,17 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
              
     # 2. Pure slug: contains only lowercase letters, numbers, underscores or hyphens (no spaces, no uppercase)
     is_slug = not is_url and re.match(r'^[a-z0-9_-]+$', url_or_name) is not None
+    
+    if not is_url and not is_slug:
+        url_or_name = await translate_to_en_async(url_or_name)
+
+    cache_key = url_or_name.lower()
+    if cache_key in _memory_cache:
+        ts, cached_data, is_exc = _memory_cache[cache_key]
+        if time.time() - ts < 3600:  # 1-hour fast memory cache
+            if is_exc:
+                raise cached_data
+            return cached_data
     
     # Resolve standard URL if it's already a URL or pure slug
     if is_url:
@@ -685,6 +699,8 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
 
 async def search_rt(query: str, limit: int = 5) -> list:
     """Search Rotten Tomatoes and return a list of suggestions."""
+    query = await translate_to_en_async(query)
+    
     global _shared_http_client
     client = _shared_http_client if _shared_http_client is not None else httpx.AsyncClient(
         headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
