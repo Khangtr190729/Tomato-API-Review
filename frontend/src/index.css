@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased min-h-screen flex justify-center items-center font-inter;
+    @apply bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 transition-colors duration-300;
+  }
+}
+
+/* Optional: Hide scrollbar but keep functionality for dropdown */
+.dropdown-container::-webkit-scrollbar {
+  width: 6px;
+}
+.dropdown-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dropdown-container::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+.dark .dropdown-container::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}

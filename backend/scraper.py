@@ -4,10 +4,37 @@ import os
 import re
 import asyncio
 import urllib.parse
+# pyrefly: ignore [missing-import]
 import httpx
 from typing import Dict, Any, Optional
+# pyrefly: ignore [missing-import]
 from bs4 import BeautifulSoup
+# pyrefly: ignore [missing-import]
 from playwright.async_api import async_playwright, Error as PlaywrightError
+# pyrefly: ignore [missing-import]
+from deep_translator import GoogleTranslator
+
+async def translate_to_vi_async(text: str) -> str:
+    if not text:
+        return text
+    try:
+        def do_translation():
+            return GoogleTranslator(source='auto', target='vi').translate(text)
+        return await asyncio.to_thread(do_translation)
+    except Exception as e:
+        logger.warning(f"Translation failed: {e}")
+        return text
+
+async def translate_to_en_async(text: str) -> str:
+    if not text:
+        return text
+    try:
+        def do_translation():
+            return GoogleTranslator(source='auto', target='en').translate(text)
+        return await asyncio.to_thread(do_translation)
+    except Exception as e:
+        logger.warning(f"Translation failed: {e}")
+        return text
 
 # Configure logging
 logger = logging.getLogger("rt_scraper")
@@ -139,6 +166,8 @@ def _parse_count(count_val: Any) -> Optional[int]:
 def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
     """Extract movie title, scores, and review/rating counts from JSON structures or DOM fallback."""
     title = None
+    image = None
+    description = None
     tomatometer = None
     tomatometer_review_count = None
     audience = None
@@ -206,6 +235,9 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
             if isinstance(data, dict) and data.get("@type") == "Movie":
                 if not title:
                     title = data.get("name")
+                if not image:
+                    image = data.get("image")
+                # Do NOT use data.get("description") as it is usually generic SEO text
                 aggregate_rating = data.get("aggregateRating", {})
                 if aggregate_rating and aggregate_rating.get("name") == "Tomatometer":
                     if tomatometer is None:
@@ -215,6 +247,34 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
         except Exception as e:
             logger.debug(f"Failed parsing ld+json tag: {e}")
 
+    # 3.5 Fallback to meta tags for image and DOM for real synopsis
+    if not image:
+        meta_img = soup.find("meta", property="og:image")
+        if meta_img:
+            image = meta_img.get("content")
+            
+    # Try finding real synopsis
+    if not description:
+        # First try <drawer-more> which usually contains the synopsis
+        drawer = soup.find("drawer-more")
+        if drawer and drawer.text.strip():
+            description = drawer.text.strip()
+        else:
+            # Fallback to <rt-text data-qa="movie-info-synopsis">
+            rt_text = soup.find("rt-text", attrs={"data-qa": "movie-info-synopsis"})
+            if rt_text and rt_text.text.strip():
+                description = rt_text.text.strip()
+            else:
+                # Fallback to <p data-qa="movie-info-synopsis">
+                p_tag = soup.find("p", attrs={"data-qa": "movie-info-synopsis"})
+                if p_tag and p_tag.text.strip():
+                    description = p_tag.text.strip()
+                else:
+                    # Generic fallback
+                    meta_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+                    if meta_desc:
+                        description = meta_desc.get("content")
+                        
     # 4. Fallback to DOM parsing for title, reviews/ratings count if still missing
     if not title:
         h1_tag = soup.find("h1")
@@ -283,6 +343,8 @@ def _extract_scores(soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
     if title:
         return {
             "title": title,
+            "image": image,
+            "description": description,
             "tomatometer": tomatometer,
             "tomatometer_review_count": tomatometer_review_count,
             "audience_score": audience,
@@ -346,7 +408,10 @@ async def _fetch_movie_via_httpx_async(url: str) -> Optional[Dict[str, Any]]:
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, "html.parser")
-        return _extract_scores(soup)
+        result = _extract_scores(soup)
+        if result and result.get("description"):
+            result["description"] = await translate_to_vi_async(result["description"])
+        return result
     except ScraperException:
         raise
     except httpx.HTTPStatusError as hse:
@@ -383,14 +448,6 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
     if not url_or_name:
         raise ScraperException("Input movie URL or name cannot be empty.")
         
-    cache_key = url_or_name.lower()
-    if cache_key in _memory_cache:
-        ts, cached_data, is_exc = _memory_cache[cache_key]
-        if time.time() - ts < 3600:  # 1-hour fast memory cache
-            if is_exc:
-                raise cached_data
-            return cached_data
-            
     # Classify input:
     # 1. Full URL
     is_url = url_or_name.startswith("http://") or url_or_name.startswith("https://") or \
@@ -398,6 +455,17 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
              
     # 2. Pure slug: contains only lowercase letters, numbers, underscores or hyphens (no spaces, no uppercase)
     is_slug = not is_url and re.match(r'^[a-z0-9_-]+$', url_or_name) is not None
+    
+    if not is_url and not is_slug:
+        url_or_name = await translate_to_en_async(url_or_name)
+
+    cache_key = url_or_name.lower()
+    if cache_key in _memory_cache:
+        ts, cached_data, is_exc = _memory_cache[cache_key]
+        if time.time() - ts < 3600:  # 1-hour fast memory cache
+            if is_exc:
+                raise cached_data
+            return cached_data
     
     # Resolve standard URL if it's already a URL or pure slug
     if is_url:
@@ -546,6 +614,8 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
             # Parse Playwright-fetched HTML and extract data
             soup = BeautifulSoup(html_content, "html.parser")
             result = _extract_scores(soup)
+            if result and result.get("description"):
+                result["description"] = await translate_to_vi_async(result["description"])
             if result:
                 return result
                 
@@ -626,6 +696,57 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
         f"Error Detail: {last_exception}"
     )
     raise ScraperException(error_msg) from last_exception
+
+async def search_rt(query: str, limit: int = 5) -> list:
+    """Search Rotten Tomatoes and return a list of suggestions."""
+    query = await translate_to_en_async(query)
+    
+    global _shared_http_client
+    client = _shared_http_client if _shared_http_client is not None else httpx.AsyncClient(
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        timeout=10.0,
+        follow_redirects=True
+    )
+    encoded_query = urllib.parse.quote(query.strip())
+    search_url = f"https://www.rottentomatoes.com/search?search={encoded_query}"
+    
+    results = []
+    try:
+        response = await client.get(search_url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            movie_section = soup.find("search-page-result", attrs={"type": "movie"})
+            if movie_section:
+                rows = movie_section.find_all("search-page-media-row")
+                for row in rows[:limit]:
+                    a_tags = row.find_all("a")
+                    a_tag = None
+                    for a in a_tags:
+                        if a.text.strip():
+                            a_tag = a
+                            break
+                    if not a_tag:
+                        continue
+                        
+                    title = a_tag.text.strip()
+                    year = row.get("releaseyear", "")
+                    url = a_tags[0]["href"]
+                    if url.startswith("/"):
+                        url = "https://www.rottentomatoes.com" + url
+                    
+                    img_tag = row.find("img")
+                    img = img_tag.get("src") if img_tag else None
+                    
+                    results.append({
+                        "title": title,
+                        "year": year,
+                        "url": url,
+                        "image": img
+                    })
+    except Exception as e:
+        logger.warning(f"Failed to fetch search suggestions for '{query}': {e}")
+        
+    return results
 
 if __name__ == "__main__":
     import sys

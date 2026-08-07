@@ -1,113 +1,82 @@
-# Tomato API Score Review
+# Tomato Project (Monolithic Architecture)
 
-Một công cụ API và CLI bằng Python mạnh mẽ, sẵn sàng cho môi trường thực tế (production) để thu thập (scrape) Điểm Tomatometer, Điểm Khán giả (Audience Score) và Tiêu đề của bất kỳ bộ phim nào trên trang Rotten Tomatoes. 
-
-Dự án sử dụng **Playwright** để cào dữ liệu web và **FastAPI** để tạo các Endpoint Web API xử lý logic thu thập dữ liệu thông qua HTTP.
+Dự án Tomato cung cấp công cụ thu thập thông tin và điểm số phim từ Rotten Tomatoes. Với kiến trúc Monolithic chuẩn, dự án bao gồm một Frontend Minimalist (React + Vite + TypeScript) và một Backend API (FastAPI + Playwright) mạnh mẽ.
 
 ## Tính năng
 
-- **Lấy dữ liệu Rotten Tomatoes**: Lấy điểm phim bằng cách sử dụng URL phim đầy đủ trên Rotten Tomatoes hoặc chỉ cần nhập tên phim (ví dụ: `Toy Story 4`, `matrix`).
-- **FastAPI Web API**: Cung cấp các Web Endpoint tích hợp sẵn tài liệu Swagger UI trực quan.
-- **Trích xuất dữ liệu thông minh**: Đọc điểm đánh giá từ các phần tử JSON được nhúng (`#media-scorecard-json` và `data-json="reviewsData"`) để đảm bảo không bị ảnh hưởng khi giao diện hiển thị thay đổi.
-- **Cơ chế dự phòng linh hoạt**: Nếu thiếu các khối JSON, hệ thống sẽ tự động chuyển sang phân tích `application/ld+json` và trích xuất dữ liệu trực tiếp từ các thẻ HTML (DOM components).
-- **Chống chặn bot (Anti-Bot)**: Tự động cấu hình User-Agents, locale, múi giờ, custom viewports và vượt qua các cơ chế phát hiện bot `navigator.webdriver` thông qua Playwright.
-- **Báo cáo lỗi chi tiết**: Tự động lưu lại file HTML (`rt.html`) và chụp ảnh màn hình trang (`debug.png`) khi gặp lỗi, đồng thời ghi lại nhật ký lỗi trên console và các network requests.
+- **Minimalist Giao diện**: Tìm kiếm và tra cứu thông tin phim với giao diện tối giản, hỗ trợ Dark/Light mode, hiệu ứng mượt mà (Glassmorphism, mượt mà).
+- **Lấy dữ liệu toàn diện**: Lấy ảnh poster chính (image), mô tả ngắn (description), Điểm Tomatometer, và Điểm Khán giả (Audience Score).
+- **Tìm kiếm thông minh**: Hỗ trợ tìm kiếm theo tên phim (ví dụ: `Toy Story 4`, `matrix`) hoặc URL Rotten Tomatoes.
+- **FastAPI Web API & Swagger UI**: Cung cấp API tích hợp tài liệu Swagger để test tự động.
+- **Bắt lỗi tiếng Việt**: Các thông báo lỗi xác thực (validation) thân thiện, hiển thị hoàn toàn bằng tiếng Việt.
+- **Chống chặn bot (Anti-Bot)**: Sử dụng Playwright với cấu hình tùy chỉnh để tránh bị phát hiện là bot.
 
 ## Cấu trúc dự án
 
-- `rt_scraper/`: Chứa mã nguồn chính để cào dữ liệu (`scraper.py`) và máy chủ API (`app.py`).
+Kiến trúc Monolithic phân tách rõ ràng:
+- `backend/`: Chứa mã nguồn Python FastAPI và Playwright scraper.
+- `frontend/`: Chứa mã nguồn giao diện người dùng React, Vite và TypeScript.
 
-## Hướng dẫn cài đặt
+---
 
-Đảm bảo bạn đã cài đặt Python phiên bản 3.12 trở lên.
+## Hướng dẫn cài đặt và khởi chạy
 
-1. Clone dự án và di chuyển vào thư mục gốc:
-   ```bash
-   cd tomato
-   ```
+Đảm bảo bạn đã cài đặt **Python 3.12+** và **Node.js (phiên bản mới nhất)**.
 
-2. Cài đặt các thư viện Python yêu cầu:
-   ```bash
-   pip install -r rt_scraper/requirements.txt
-   ```
+### 1. Khởi chạy Backend API
 
-3. Cài đặt trình duyệt Chromium cho Playwright:
-   ```bash
-   playwright install chromium
-   ```
-
-## Hướng dẫn sử dụng
-
-### 1. Sử dụng Web API (FastAPI)
-
-Khởi động HTTP server tại local (máy cá nhân) để nhận requests từ các ứng dụng khác:
+Cài đặt các gói phụ thuộc Python và Chromium cho Playwright:
 
 ```bash
-cd rt_scraper
-python app.py
+cd tomato/backend
+pip install -r requirements.txt
+playwright install chromium
 ```
-*Server sẽ chạy tại địa chỉ `http://localhost:8000`.*
 
-**Endpoint:** `GET /api/scores`
-
-- **Tham số (Query Parameters):**
-  - `movie` (str, bắt buộc): Tên phim, slug hoặc URL đầy đủ của Rotten Tomatoes.
-
-- **Ví dụ gọi API (Request):**
-  `http://localhost:8000/api/scores?movie=matrix`
-
-- **Ví dụ kết quả trả về (Response):**
-  ```json
-  {
-      "title": "The Matrix",
-      "tomatometer": 83,
-      "audience_score": 85
-  }
-  ```
-
-- **Tài liệu API tương tác**: Mở trình duyệt và truy cập vào địa chỉ `http://localhost:8000/docs` để xem tài liệu Swagger UI.
-
-### 2. Sử dụng thông qua Command Line Interface (CLI)
-
-Bạn cũng có thể chạy trực tiếp file scraper từ terminal.
+Khởi động server Backend:
 
 ```bash
-cd rt_scraper
-python scraper.py "Toy Story 4"
+python main.py
 ```
+*Server sẽ chạy tại địa chỉ `http://127.0.0.1:8000`.*
 
-**Kết quả:**
+### 2. Khởi chạy Frontend UI
+
+Mở một cửa sổ Terminal khác, cài đặt thư viện và chạy ứng dụng React:
+
+```bash
+cd tomato/frontend
+npm install
+npm run dev
+```
+*Giao diện người dùng sẽ có sẵn ở địa chỉ hiển thị trong terminal (thường là `http://localhost:5173`).*
+
+---
+
+## Kiểm thử API bằng Swagger UI
+
+Backend API đi kèm với tài liệu tương tác Swagger UI. Đây là cách dễ nhất để test trực tiếp các endpoint:
+
+1. Đảm bảo Backend đang chạy (bước 1 ở trên).
+2. Mở trình duyệt và truy cập: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+3. Tìm endpoint `GET /api/scores`.
+4. Nhấn nút **"Try it out"**.
+5. Nhập tên phim hoặc URL (ví dụ: `matrix`) vào tham số `movie`.
+6. Nhấn **"Execute"** và xem cấu trúc kết quả trả về cũng như các lỗi Validation (nếu có).
+
+## Ví dụ kết quả trả về (JSON)
+
 ```json
 {
-    "title": "Toy Story 4",
-    "tomatometer": 97,
-    "audience_score": 94
+    "title": "The Matrix",
+    "image": "https://resizing.flixster.com/.../The_Matrix_Poster.jpg",
+    "description": "Neo (Keanu Reeves) believes that Morpheus...",
+    "tomatometer": 83,
+    "tomatometer_review_count": 209,
+    "audience_score": 85,
+    "audience_rating_count": "1,307,885 Ratings"
 }
 ```
 
-### 3. Nhúng vào code Python (Python API Usage)
-
-Để sử dụng logic cào dữ liệu trực tiếp trong một kịch bản Python khác của bạn:
-
-```python
-import sys
-import os
-
-# Thêm thư mục rt_scraper vào python path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'rt_scraper'))
-
-from rt_scraper.scraper import get_rt_scores
-
-try:
-    scores = get_rt_scores("matrix")
-    print("Điểm của phim:", scores)
-except Exception as e:
-    print(f"Có lỗi xảy ra: {e}")
-```
-
 ## Đóng góp
-
-Mọi đóng góp cho dự án đều được hoan nghênh. Xin vui lòng mở issue hoặc tạo pull requests mới.
-
-## Giấy phép (License)
-*(Vui lòng thêm thông tin giấy phép của bạn tại đây, ví dụ: MIT License)*
+Mọi đóng góp cho dự án đều được hoan nghênh. Xin vui lòng tạo pull requests mới.
