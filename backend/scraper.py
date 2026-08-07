@@ -648,6 +648,55 @@ async def get_rt_scores(url_or_name: str, retries: int = 3, timeout: int = 30000
     )
     raise ScraperException(error_msg) from last_exception
 
+async def search_rt(query: str, limit: int = 5) -> list:
+    """Search Rotten Tomatoes and return a list of suggestions."""
+    global _shared_http_client
+    client = _shared_http_client if _shared_http_client is not None else httpx.AsyncClient(
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        timeout=10.0,
+        follow_redirects=True
+    )
+    encoded_query = urllib.parse.quote(query.strip())
+    search_url = f"https://www.rottentomatoes.com/search?search={encoded_query}"
+    
+    results = []
+    try:
+        response = await client.get(search_url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            movie_section = soup.find("search-page-result", attrs={"type": "movie"})
+            if movie_section:
+                rows = movie_section.find_all("search-page-media-row")
+                for row in rows[:limit]:
+                    a_tags = row.find_all("a")
+                    a_tag = None
+                    for a in a_tags:
+                        if a.text.strip():
+                            a_tag = a
+                            break
+                    if not a_tag:
+                        continue
+                        
+                    title = a_tag.text.strip()
+                    year = row.get("releaseyear", "")
+                    url = a_tags[0]["href"]
+                    if url.startswith("/"):
+                        url = "https://www.rottentomatoes.com" + url
+                    
+                    img_tag = row.find("img")
+                    img = img_tag.get("src") if img_tag else None
+                    
+                    results.append({
+                        "title": title,
+                        "year": year,
+                        "url": url,
+                        "image": img
+                    })
+    except Exception as e:
+        logger.warning(f"Failed to fetch search suggestions for '{query}': {e}")
+        
+    return results
+
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:

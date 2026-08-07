@@ -20,7 +20,8 @@ from scraper import (
     close_shared_browser,
     init_shared_http_client,
     close_shared_http_client,
-    prewarm_cache
+    prewarm_cache,
+    search_rt
 )
 
 # Configure logging (Set to WARNING in production to optimize console I/O speed)
@@ -151,6 +152,20 @@ async def get_scores(movie: str = Query(..., description="The name, slug, or ful
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Lỗi máy chủ nội bộ: {str(e)}"
+        )
+
+@app.get("/api/search")
+async def get_search_suggestions(q: str = Query(..., min_length=1, description="Tên phim cần tìm kiếm")):
+    """
+    Tìm kiếm và gợi ý tên phim trên Rotten Tomatoes.
+    """
+    try:
+        results = await search_rt(q)
+        return results
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Lỗi máy chủ nội bộ khi tìm kiếm: {str(e)}"
         )
 
 if __name__ == "__main__":
