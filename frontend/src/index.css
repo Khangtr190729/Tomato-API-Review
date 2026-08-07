@@ -5,7 +5,7 @@
 @layer base {
   body {
     @apply antialiased min-h-screen flex justify-center items-center font-inter;
-    @apply bg-neutral-50 text-neutral-900 transition-colors duration-300;
+    @apply bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 transition-colors duration-300;
   }
 }
 
