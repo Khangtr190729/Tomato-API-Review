@@ -15,6 +15,7 @@ Dự án Tomato cung cấp công cụ thu thập thông tin và điểm số phi
 
 Kiến trúc Monolithic phân tách rõ ràng:
 - `backend/`: Chứa mã nguồn Python FastAPI và Playwright scraper.
+
 - `frontend/`: Chứa mã nguồn giao diện người dùng React, Vite và TypeScript.
 
 ---

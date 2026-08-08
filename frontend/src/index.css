@@ -4,8 +4,10 @@
 
 @layer base {
   body {
-    @apply antialiased min-h-screen flex justify-center items-center font-inter;
-    @apply bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 transition-colors duration-300;
+    @apply antialiased min-h-screen font-inter transition-colors duration-500;
+  }
+  #root {
+    @apply min-h-screen flex justify-center items-center w-full;
   }
 }
 

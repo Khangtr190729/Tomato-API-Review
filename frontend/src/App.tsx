@@ -17,9 +17,81 @@ interface MovieData {
   audience_rating_count?: string;
 }
 
+type ThemeStyle = 'default' | 'glass' | 'clay'
+
 function App() {
+  const [themeStyle, setThemeStyle] = useState<ThemeStyle>('default')
   const [query, setQuery] = useState('')
   const [movie, setMovie] = useState<MovieData | null>(null)
+
+  useEffect(() => {
+    document.body.className = 'antialiased min-h-screen font-inter transition-all duration-500'
+    if (themeStyle === 'default') {
+      document.body.classList.add('bg-neutral-50', 'dark:bg-neutral-950', 'text-neutral-900', 'dark:text-neutral-100')
+    } else if (themeStyle === 'glass') {
+      document.body.classList.add('bg-gradient-to-br', 'from-indigo-100', 'via-purple-100', 'to-pink-100', 'dark:from-indigo-950', 'dark:via-purple-950', 'dark:to-pink-950', 'bg-[length:200%_200%]', 'animate-gradient', 'text-neutral-900', 'dark:text-neutral-100')
+    } else if (themeStyle === 'clay') {
+      document.body.classList.add('bg-slate-200', 'dark:bg-slate-900', 'text-slate-800', 'dark:text-slate-200')
+    }
+  }, [themeStyle])
+
+  const getContainerClasses = () => {
+    switch (themeStyle) {
+      case 'glass':
+        return 'bg-white/40 dark:bg-black/40 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-glass dark:shadow-glass-dark rounded-3xl'
+      case 'clay':
+        return 'bg-slate-200 dark:bg-slate-900 shadow-clay dark:shadow-clay-dark rounded-3xl border-transparent'
+      default:
+        return 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-lg'
+    }
+  }
+
+  const getInputClasses = () => {
+    switch (themeStyle) {
+      case 'glass':
+        return 'bg-white/50 dark:bg-black/50 backdrop-blur-md border border-white/50 dark:border-white/10 shadow-inner'
+      case 'clay':
+        return 'bg-slate-200 dark:bg-slate-900 shadow-clay-inner dark:shadow-clay-inner-dark border-transparent focus:shadow-clay dark:focus:shadow-clay-dark'
+      default:
+        return 'bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 focus:border-rtRed focus:ring-4 focus:ring-rtRed/10'
+    }
+  }
+
+  const getDropdownClasses = () => {
+    switch (themeStyle) {
+      case 'glass':
+        return 'bg-white/60 dark:bg-black/60 backdrop-blur-2xl border border-white/50 dark:border-white/10 shadow-glass dark:shadow-glass-dark'
+      case 'clay':
+        return 'bg-slate-200 dark:bg-slate-900 shadow-clay dark:shadow-clay-dark border-transparent'
+      default:
+        return 'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl'
+    }
+  }
+
+  const getDropdownItemClasses = (isLast: boolean) => {
+    let base = 'flex items-center gap-4 p-3 cursor-pointer transition-colors '
+    if (!isLast) {
+      if (themeStyle === 'glass') base += 'border-b border-black/10 dark:border-white/10 '
+      else if (themeStyle === 'clay') base += 'border-b border-slate-300 dark:border-slate-800 '
+      else base += 'border-b border-neutral-100 dark:border-neutral-800 '
+    }
+    if (themeStyle === 'glass') base += 'hover:bg-white/50 dark:hover:bg-white/10 '
+    else if (themeStyle === 'clay') base += 'hover:bg-slate-300 dark:hover:bg-slate-800 '
+    else base += 'hover:bg-neutral-100 dark:hover:bg-neutral-800 '
+    return base
+  }
+
+  const getButtonClasses = () => {
+    switch (themeStyle) {
+      case 'glass':
+        return 'bg-rtRed/90 hover:bg-rtRed backdrop-blur-md border border-white/30 shadow-glass dark:shadow-glass-dark'
+      case 'clay':
+        return 'bg-rtRed hover:bg-rtRedHover shadow-clay-btn border-transparent transition-all active:shadow-clay-btn-active'
+      default:
+        return 'bg-rtRed hover:bg-rtRedHover'
+    }
+  }
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -96,6 +168,26 @@ function App() {
 
   return (
     <div className="w-full max-w-[600px] px-5 py-10 flex flex-col gap-8">
+      <div className="flex justify-center gap-3 mb-2">
+        {(['default', 'glass', 'clay'] as ThemeStyle[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setThemeStyle(t)}
+            className={`px-5 py-2 rounded-full text-sm font-medium capitalize transition-all ${
+              themeStyle === t 
+                ? 'bg-rtRed text-white shadow-lg' 
+                : themeStyle === 'glass'
+                  ? 'bg-white/40 dark:bg-black/40 text-neutral-700 dark:text-neutral-300 hover:bg-white/60 dark:hover:bg-black/60 backdrop-blur-md' 
+                  : themeStyle === 'clay'
+                    ? 'bg-slate-200 dark:bg-slate-900 shadow-clay dark:shadow-clay-dark text-slate-700 dark:text-slate-300'
+                    : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-300 dark:hover:bg-neutral-700'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
       <header className="text-center">
         <h1 className="text-4xl font-semibold tracking-tight mb-2 text-neutral-900 dark:text-neutral-100">
           <span className="text-rtRed">Tomato</span> Search
@@ -106,7 +198,7 @@ function App() {
       <form className="relative flex w-full" onSubmit={handleSearch} ref={dropdownRef}>
         <input
           type="text"
-          className="w-full py-4 pl-6 pr-32 text-lg border border-neutral-200 dark:border-neutral-800 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 outline-none transition-all duration-200 focus:border-rtRed focus:ring-4 focus:ring-rtRed/10 placeholder-neutral-400"
+          className={`w-full py-4 pl-6 pr-32 text-lg rounded-full outline-none transition-all duration-200 placeholder-neutral-400 ${getInputClasses()}`}
           placeholder="Nhập tên phim hoặc URL Rotten Tomatoes..."
           value={query}
           onChange={(e) => {
@@ -120,22 +212,21 @@ function App() {
         />
         <button 
           type="submit" 
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-rtRed text-white border-none rounded-full px-6 py-2.5 font-medium cursor-pointer transition-all hover:bg-rtRedHover active:scale-95 disabled:bg-neutral-300 dark:disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed"
+          className={`absolute right-2 top-1/2 -translate-y-1/2 text-white border-none rounded-full px-6 py-2.5 font-medium cursor-pointer active:scale-95 disabled:bg-neutral-300 dark:disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed disabled:shadow-none ${getButtonClasses()}`}
           disabled={loading || !query.trim()}
         >
           Tìm kiếm
         </button>
 
-        {/* Dropdown Suggestions */}
         {showDropdown && query.trim() && (
-          <div className="absolute top-[calc(100%+8px)] left-0 right-0 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden z-10 max-h-[400px] overflow-y-auto animate-[fadeIn_0.2s_ease-out]">
+          <div className={`absolute top-[calc(100%+8px)] left-0 right-0 rounded-2xl overflow-hidden z-10 max-h-[400px] overflow-y-auto animate-[fadeIn_0.2s_ease-out] dropdown-container ${getDropdownClasses()}`}>
             {isSearchingSuggestions ? (
               <div className="p-4 text-center text-neutral-500 dark:text-neutral-400">Đang tải gợi ý...</div>
             ) : suggestions.length > 0 ? (
               suggestions.map((item, index) => (
                 <div 
                   key={index} 
-                  className={`flex items-center gap-4 p-3 cursor-pointer transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800 ${index !== suggestions.length - 1 ? 'border-b border-neutral-100 dark:border-neutral-800' : ''}`}
+                  className={getDropdownItemClasses(index === suggestions.length - 1)}
                   onClick={() => {
                     setQuery(item.title)
                     setShowDropdown(false)
@@ -173,7 +264,7 @@ function App() {
       )}
 
       {movie && !loading && (
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl overflow-hidden shadow-lg animate-[fadeIn_0.5s_ease-out] flex flex-col">
+        <div className={`overflow-hidden animate-[fadeIn_0.5s_ease-out] flex flex-col ${getContainerClasses()}`}>
           {movie.image ? (
             <div className="w-full relative bg-black flex justify-center">
               <img src={movie.image} alt={movie.title} className="w-full max-h-[400px] object-contain" />
@@ -225,6 +316,19 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <footer className="mt-8 text-center flex flex-col items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 animate-[fadeIn_0.5s_ease-out]">
+        <p>Developed with ❤️ by Khang</p>
+        <div className="flex gap-4">
+          <a href="https://github.com/Khangtr190729" target="_blank" rel="noreferrer" className="hover:text-rtRed transition-colors font-medium">
+            GitHub
+          </a>
+          <a href="https://www.facebook.com/Khangtr1201/" target="_blank" rel="noreferrer" className="hover:text-rtRed transition-colors font-medium">
+            Facebook
+          </a>
+        </div>
+      </footer>
     </div>
   )
 }
