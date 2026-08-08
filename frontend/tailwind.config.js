@@ -31,14 +31,7 @@ export default {
         slideIn: {
           '0%': { opacity: '0', transform: 'translateX(-10px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
-        },
-        gradient: {
-          '0%, 100%': { backgroundPosition: '0% 50%' },
-          '50%': { backgroundPosition: '100% 50%' },
         }
-      },
-      animation: {
-        gradient: 'gradient 10s ease infinite',
       }
     },
   },
