@@ -71,7 +71,7 @@ Backend API đi kèm với tài liệu tương tác Swagger UI. Đây là cách 
 {
     "title": "The Matrix",
     "image": "https://resizing.flixster.com/.../The_Matrix_Poster.jpg",
-    "description": "Neo (Keanu Reeves) believes that Morpheus...",
+    "description": "Neo (Keanu Reeves) believes that Morpheus ...",
     "tomatometer": 83,
     "tomatometer_review_count": 209,
     "audience_score": 85,
